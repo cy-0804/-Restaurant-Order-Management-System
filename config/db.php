@@ -43,6 +43,32 @@ try {
             }
         }
     }
+
+    $defaultPasswordHash = '$2y$10$xEDdQyDaP4D32dDaerC89eI3L8pBo/9iPPTwlqEQt8ZO1kjCwiiHy';
+    $defaultUsers = [
+        ['staff1', $defaultPasswordHash, 'staff'],
+        ['staff2', $defaultPasswordHash, 'staff'],
+        ['admin1', $defaultPasswordHash, 'admin']
+    ];
+    $stmtUser = $pdo->prepare("
+        INSERT INTO users (username, password, role)
+        VALUES (?, ?, ?)
+        ON DUPLICATE KEY UPDATE role = VALUES(role)
+    ");
+    foreach ($defaultUsers as $defaultUser) {
+        $stmtUser->execute($defaultUser);
+    }
+
+    $stmtBadHash = $pdo->prepare("
+        UPDATE users
+        SET password = ?
+        WHERE username IN ('staff1', 'staff2', 'admin1')
+          AND password = ?
+    ");
+    $stmtBadHash->execute([
+        $defaultPasswordHash,
+        '$2y$10$8.X7zQ939FjE6aW3yHjQ4OiYtV7r67bWz5aLg5n3Y35eA2F1O2uO2'
+    ]);
     
     $db_connected = true;
 } catch (\PDOException $e) {
