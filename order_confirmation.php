@@ -3,6 +3,7 @@ include 'config/db.php';
 
 $order_id = isset($_GET['id']) ? intval($_GET['id']) : null;
 $mock_id = isset($_GET['mock_id']) ? htmlspecialchars($_GET['mock_id']) : null;
+$email_status = isset($_GET['email_status']) ? $_GET['email_status'] : '';
 
 $db_order = null;
 $db_order_items = [];
@@ -38,12 +39,32 @@ include 'includes/header.php';
         Thank you for ordering with Sup Tulang ZZ. Your order has been sent to the kitchen.
     </p>
 
+    <?php
+        $email_title = 'Confirmation Email Queued';
+        $email_message = 'A receipt and tracking details have been prepared for ';
+        $email_icon = 'fa-paper-plane';
+        $email_color = 'var(--success)';
+
+        if ($email_status === 'sent') {
+            $email_title = 'Confirmation Email Sent!';
+            $email_message = 'A receipt and tracking details have been sent to ';
+        } elseif ($email_status === 'logged') {
+            $email_title = 'Confirmation Email Logged';
+            $email_message = 'Mail is not configured, so a copy was saved in logs/email_confirmations.log for ';
+            $email_icon = 'fa-file-lines';
+        } elseif ($email_status === 'skipped') {
+            $email_title = 'Email Not Sent';
+            $email_message = 'No valid email address was available for ';
+            $email_icon = 'fa-circle-info';
+            $email_color = 'var(--info)';
+        }
+    ?>
     <div style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: var(--radius-sm); padding: 1rem; text-align: left; margin-bottom: 2rem; display: flex; gap: 0.75rem; align-items: flex-start;">
-        <i class="fa-solid fa-paper-plane" style="color: var(--success); font-size: 1.25rem; margin-top: 0.15rem;"></i>
+        <i class="fa-solid <?php echo $email_icon; ?>" style="color: <?php echo $email_color; ?>; font-size: 1.25rem; margin-top: 0.15rem;"></i>
         <div>
-            <strong style="color: var(--success); font-size: 0.95rem;">Confirmation Email Sent!</strong>
+            <strong style="color: <?php echo $email_color; ?>; font-size: 0.95rem;"><?php echo htmlspecialchars($email_title); ?></strong>
             <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem; line-height: 1.4;">
-                A receipt and tracking details have been sent to <strong id="sent-email-span" style="color:var(--text-main)">your email</strong>.
+                <?php echo htmlspecialchars($email_message); ?><strong id="sent-email-span" style="color:var(--text-main)">your email</strong>.
             </p>
         </div>
     </div>
