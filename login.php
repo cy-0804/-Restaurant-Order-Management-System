@@ -25,6 +25,23 @@ if (isset($_GET['unauthorized'])) {
 
 $redirect = isset($_GET['redirect']) ? $_GET['redirect'] : '';
 
+function safe_redirect_target($redirect) {
+    if (empty($redirect)) {
+        return 'staff.php';
+    }
+
+    $path = parse_url($redirect, PHP_URL_PATH);
+    $query = parse_url($redirect, PHP_URL_QUERY);
+    $target = basename($path);
+    $allowed_targets = ['staff.php', 'qr_generator.php'];
+
+    if (!in_array($target, $allowed_targets, true)) {
+        return 'staff.php';
+    }
+
+    return $query ? $target . '?' . $query : $target;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username']);
     $password = $_POST['password'];
@@ -38,16 +55,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$username]);
                 $user = $stmt->fetch();
                 
-                if ($user && (password_verify($password, $user['password']) || $password === 'password123' || $password === 'password')) {
+                if ($user && password_verify($password, $user['password'])) {
                     $_SESSION['user_id'] = $user['id'];
                     $_SESSION['username'] = $user['username'];
                     $_SESSION['user_role'] = $user['role'];
                     
-                    if (!empty($redirect)) {
-                        header("Location: " . $redirect);
-                    } else {
-                        header("Location: staff.php");
-                    }
+                    header("Location: " . safe_redirect_target($redirect));
                     exit;
                 } else {
                     $error_msg = "Invalid username or password.";
@@ -77,11 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['username'] = $found_user['username'];
                 $_SESSION['user_role'] = $found_user['role'];
                 
-                if (!empty($redirect)) {
-                    header("Location: " . $redirect);
-                } else {
-                    header("Location: staff.php");
-                }
+                header("Location: " . safe_redirect_target($redirect));
                 exit;
             } else {
                 $error_msg = "Invalid mock credentials. (Use: staff1 / password123)";
