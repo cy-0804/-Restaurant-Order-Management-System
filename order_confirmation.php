@@ -155,13 +155,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const orderId = "<?php echo $order_id; ?>";
     const dbConnected = <?php echo $db_connected ? 'true' : 'false'; ?>;
     
+    function clearCheckoutCart() {
+        if (typeof clearCart === 'function') {
+            clearCart();
+        } else {
+            localStorage.removeItem('restaurant_cart');
+            document.dispatchEvent(new CustomEvent('cartUpdated'));
+        }
+    }
+
     let trackUrl = 'track.php';
     
     if (dbConnected && orderId) {
+        clearCheckoutCart();
         trackUrl = `track.php?id=${orderId}`;
         const email = "<?php echo $db_order ? htmlspecialchars($db_order['customer_email']) : ''; ?>";
         document.getElementById('sent-email-span').textContent = email;
     } else if (mockId) {
+        clearCheckoutCart();
         const orders = getMockOrders();
         const order = orders.find(o => o.id == mockId);
         
