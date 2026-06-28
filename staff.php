@@ -388,10 +388,12 @@ window.viewReceipt = function(orderId) {
         document.getElementById('modal-title').textContent = `Order #${order.id} Payment Receipt`;
         
         const modalImgContainer = document.getElementById('modal-img-container');
-        if (order.payment_receipt && order.payment_receipt.startsWith('data:image')) {
+        if (order.payment_receipt && (order.payment_receipt.startsWith('data:image') || /\.(jpe?g|png|webp)$/i.test(order.payment_receipt))) {
             modalImgContainer.innerHTML = `<img src="${order.payment_receipt}" style="max-width:100%; max-height:300px; border-radius:var(--radius-sm);" alt="Bank receipt">`;
+        } else if (order.payment_receipt && /\.pdf$/i.test(order.payment_receipt)) {
+            modalImgContainer.innerHTML = `<div style="padding:2rem; background:rgba(255,255,255,0.02); border:1px dashed var(--border-color); border-radius:var(--radius-sm); color:var(--primary); font-weight:600;"><i class="fa-solid fa-file-pdf" style="font-size:2.5rem; margin-bottom:0.5rem; display:block;"></i><a href="${order.payment_receipt}" target="_blank" style="color:var(--primary); text-decoration:underline;">Open PDF Receipt</a></div>`;
         } else if (order.payment_receipt) {
-            modalImgContainer.innerHTML = `<div style="padding:2rem; background:rgba(255,255,255,0.02); border:1px dashed var(--border-color); border-radius:var(--radius-sm); color:var(--primary); font-weight:600;"><i class="fa-solid fa-file-pdf" style="font-size:2.5rem; margin-bottom:0.5rem; display:block;"></i> ${order.payment_receipt}</div>`;
+            modalImgContainer.innerHTML = `<div style="padding:2rem; background:rgba(255,255,255,0.02); border:1px dashed var(--border-color); border-radius:var(--radius-sm); color:var(--primary); font-weight:600;"><i class="fa-solid fa-file-invoice" style="font-size:2.5rem; margin-bottom:0.5rem; display:block;"></i> ${order.payment_receipt}</div>`;
         } else {
             modalImgContainer.innerHTML = `<div style="padding:2rem; background:rgba(255,255,255,0.02); border:1px dashed var(--danger); border-radius:var(--radius-sm); color:var(--danger); font-weight:600;"><i class="fa-solid fa-triangle-exclamation" style="font-size:2.5rem; margin-bottom:0.5rem; display:block;"></i> No receipt uploaded</div>`;
         }
