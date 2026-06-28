@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/order_mailer.php';
 include 'config/db.php';
 
 $action = isset($_GET['action']) ? $_GET['action'] : '';
@@ -138,32 +139,117 @@ elseif ($action === 'create_order') {
     }
     
     try {
-        $order_type = $_POST['order_type'];
-        $table_number = isset($_POST['table_number']) && !empty($_POST['table_number']) ? intval($_POST['table_number']) : null;
-        $customer_name = $_POST['customer_name'];
-        $customer_email = $_POST['customer_email'];
-        $delivery_address = isset($_POST['delivery_address']) ? $_POST['delivery_address'] : null;
-        $total_amount = floatval($_POST['total_amount']);
+        $order_type = $_POST['order_type'] ?? '';
+        $allowed_order_types = ['walk-in', 'online'];
+        if (!in_array($order_type, $allowed_order_types, true)) {
+            throw new Exception("Invalid order type.");
+        }
+
+        $table_number = isset($_POST['table_number']) && $_POST['table_number'] !== '' ? intval($_POST['table_number']) : null;
+        if ($order_type === 'walk-in' && (!$table_number || $table_number < 1 || $table_number > 99)) {
+            throw new Exception("A valid table number is required for walk-in orders.");
+        }
+
+        $customer_name = trim($_POST['customer_name'] ?? '');
+        $customer_email = trim($_POST['customer_email'] ?? '');
+        $delivery_address = trim($_POST['delivery_address'] ?? '');
+        $payment_method = $_POST['payment_method'] ?? '';
+
+        if ($customer_name === '' || strlen($customer_name) > 100) {
+            throw new Exception("Please enter a valid customer name.");
+        }
+        if (!filter_var($customer_email, FILTER_VALIDATE_EMAIL) || strlen($customer_email) > 100) {
+            throw new Exception("Please enter a valid email address.");
+        }
+
+        $cart_data = json_decode($_POST['cart_data'] ?? '', true);
+        if (!is_array($cart_data) || count($cart_data) === 0) {
+            throw new Exception("Your cart is empty or invalid.");
+        }
+
+        $requested_items = [];
+        foreach ($cart_data as $item) {
+            $menu_item_id = isset($item['id']) ? intval($item['id']) : 0;
+            $quantity = isset($item['quantity']) ? intval($item['quantity']) : 0;
+            if ($menu_item_id <= 0 || $quantity <= 0 || $quantity > 50) {
+                throw new Exception("Invalid cart item quantity.");
+            }
+            if (!isset($requested_items[$menu_item_id])) {
+                $requested_items[$menu_item_id] = 0;
+            }
+            $requested_items[$menu_item_id] += $quantity;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($requested_items), '?'));
+        $stmtMenu = $pdo->prepare("
+            SELECT id, name, price
+            FROM menu_items
+            WHERE is_available = 1 AND id IN ($placeholders)
+        ");
+        $stmtMenu->execute(array_keys($requested_items));
+        $menu_rows = $stmtMenu->fetchAll();
+
+        if (count($menu_rows) !== count($requested_items)) {
+            throw new Exception("One or more cart items are unavailable.");
+        }
+
+        $validated_items = [];
+        $subtotal = 0.0;
+        foreach ($menu_rows as $row) {
+            $quantity = $requested_items[(int)$row['id']];
+            $price = (float)$row['price'];
+            $subtotal += $price * $quantity;
+            $validated_items[] = [
+                'id' => (int)$row['id'],
+                'name' => $row['name'],
+                'quantity' => $quantity,
+                'price' => $price
+            ];
+        }
+        $total_amount = round($subtotal * 1.06, 2);
         
         $receipt_path = null;
         if (isset($_FILES['payment_receipt']) && $_FILES['payment_receipt']['error'] === UPLOAD_ERR_OK) {
+            if ($_FILES['payment_receipt']['size'] > 5 * 1024 * 1024) {
+                throw new Exception("Payment receipt must be 5MB or smaller.");
+            }
+
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $mime_type = $finfo->file($_FILES['payment_receipt']['tmp_name']);
+            $allowed_mimes = [
+                'image/jpeg' => 'jpg',
+                'image/png' => 'png',
+                'image/webp' => 'webp',
+                'application/pdf' => 'pdf'
+            ];
+            if (!isset($allowed_mimes[$mime_type])) {
+                throw new Exception("Payment receipt must be a JPG, PNG, WEBP, or PDF file.");
+            }
+
             $upload_dir = __DIR__ . '/uploads/';
             if (!is_dir($upload_dir)) {
                 mkdir($upload_dir, 0755, true);
             }
             
-            $file_ext = strtolower(pathinfo($_FILES['payment_receipt']['name'], PATHINFO_EXTENSION));
-            $filename = uniqid('receipt_', true) . '.' . $file_ext;
+            $filename = uniqid('receipt_', true) . '.' . $allowed_mimes[$mime_type];
             $destination = $upload_dir . $filename;
             
             if (move_uploaded_file($_FILES['payment_receipt']['tmp_name'], $destination)) {
                 $receipt_path = 'uploads/' . $filename;
+            } else {
+                throw new Exception("Could not save payment receipt.");
             }
+        }
+
+        if ($payment_method === 'manual_transfer' && empty($receipt_path)) {
+            throw new Exception("Please upload a payment receipt for manual bank transfer.");
         }
         
         $pdo->beginTransaction();
         
-        $is_gateway_paid = isset($_POST['payment_gateway_paid']) && $_POST['payment_gateway_paid'] === '1';
+        $is_gateway_paid = in_array($payment_method, ['ewallet', 'card'], true)
+            && isset($_POST['payment_gateway_paid'])
+            && $_POST['payment_gateway_paid'] === '1';
         $payment_status = ($order_type === 'walk-in' || $is_gateway_paid) ? 'verified' : 'pending';
         
         if ($is_gateway_paid && empty($receipt_path)) {
@@ -187,30 +273,39 @@ elseif ($action === 'create_order') {
         
         $order_id = $pdo->lastInsertId();
         
-        $cart_data = json_decode($_POST['cart_data'], true);
-        if (is_array($cart_data)) {
-            $stmtItem = $pdo->prepare("
-                INSERT INTO order_items (order_id, menu_item_id, quantity, price)
-                VALUES (?, ?, ?, ?)
-            ");
-            
-            foreach ($cart_data as $item) {
-                $stmtItem->execute([
-                    $order_id,
-                    $item['id'],
-                    $item['quantity'],
-                    $item['price']
-                ]);
-            }
+        $stmtItem = $pdo->prepare("
+            INSERT INTO order_items (order_id, menu_item_id, quantity, price)
+            VALUES (?, ?, ?, ?)
+        ");
+        
+        foreach ($validated_items as $item) {
+            $stmtItem->execute([
+                $order_id,
+                $item['id'],
+                $item['quantity'],
+                $item['price']
+            ]);
         }
         
         $pdo->commit();
+
+        $email_status = send_order_confirmation_email([
+            'id' => $order_id,
+            'order_type' => $order_type,
+            'table_number' => $table_number,
+            'customer_name' => $customer_name,
+            'customer_email' => $customer_email,
+            'delivery_address' => $delivery_address,
+            'total_amount' => $total_amount,
+            'payment_status' => $payment_status,
+            'order_status' => 'pending'
+        ], $validated_items);
         
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
         
-        header("Location: order_confirmation.php?id=" . $order_id);
+        header("Location: order_confirmation.php?id=" . $order_id . "&email_status=" . urlencode($email_status));
         exit;
         
     } catch (Exception $e) {
