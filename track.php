@@ -12,6 +12,7 @@ include 'includes/header.php';
         <div>
             <h2>Order Tracking</h2>
             <p style="color:var(--text-muted);" id="tracking-title-order">Order #Z-849201</p>
+            <span class="status-badge pending" id="overall-status-badge" style="display:inline-block; margin-top:0.35rem;">pending</span>
         </div>
     </div>
     
@@ -78,11 +79,11 @@ include 'includes/header.php';
         <div style="border-top: 1px dashed var(--border-color); padding-top: 1rem; margin-bottom: 1rem;">
             <div style="display:flex; justify-content:space-between; font-size:0.95rem; margin-bottom:0.5rem; color:var(--text-muted);">
                 <span>Subtotal</span>
-                <span>RM 56.13</span>
+                <span id="track-subtotal">RM 56.13</span>
             </div>
             <div style="display:flex; justify-content:space-between; font-size:0.95rem; margin-bottom:0.5rem; color:var(--text-muted);">
                 <span>Service Tax (6%)</span>
-                <span>RM 3.37</span>
+                <span id="track-tax">RM 3.37</span>
             </div>
         </div>
         
@@ -109,8 +110,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!dbConnected) {
         document.getElementById('sim-info-banner').style.display = 'block';
     }
-    
-    
+
+    pollOrderStatus();
+    setInterval(pollOrderStatus, 5000);
     
     async function pollOrderStatus() {
         if (dbConnected && orderId) {
@@ -118,9 +120,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await fetch(`api.php?action=get_order_status&id=${orderId}`);
                 if (!res.ok) throw new Error("HTTP error");
                 const order = await res.json();
+                if (order.success === false) throw new Error(order.error || "Order not found");
                 bindOrderDetails(order);
             } catch (e) {
                 console.error("Error polling order status: ", e);
+                document.getElementById('tracking-title-order').textContent = "Order not found";
             }
         } else if (mockId) {
             const orders = getMockOrders();
@@ -137,8 +141,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const isWalkIn = (type === 'walk-in');
         
         const badge = document.getElementById('overall-status-badge');
-        badge.className = `status-badge ${status}`;
-        badge.textContent = status;
+        if (badge) {
+            badge.className = `status-badge ${status}`;
+            badge.textContent = status === 'preparing' ? 'In Progress' : status;
+        }
+
+        document.getElementById('tracking-title-order').textContent = `Order #${order.id}`;
         
         const isDelivery = order.delivery_method === 'delivery' || localStorage.getItem('delivery_method') === 'delivery';
         
@@ -148,17 +156,25 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const container = document.getElementById('track-items-summary');
         container.innerHTML = '';
+        let subtotal = 0;
         if (order.items && order.items.length > 0) {
             order.items.forEach(item => {
+                const itemTotal = parseFloat(item.price) * parseInt(item.quantity);
+                subtotal += itemTotal;
                 const row = `
                     <div style="display:flex; justify-content:space-between; font-size:0.95rem;">
                         <span style="color:var(--text-muted);">${item.quantity}x ${item.name}</span>
-                        <span>RM ${(item.price * item.quantity).toFixed(2)}</span>
+                        <span>RM ${itemTotal.toFixed(2)}</span>
                     </div>
                 `;
                 container.insertAdjacentHTML('beforeend', row);
             });
         }
+
+        const total = parseFloat(order.total_amount);
+        const tax = Math.max(total - subtotal, 0);
+        document.getElementById('track-subtotal').textContent = `RM ${subtotal.toFixed(2)}`;
+        document.getElementById('track-tax').textContent = `RM ${tax.toFixed(2)}`;
         
         const nodes = {
             'pending': document.getElementById('step-pending'),
