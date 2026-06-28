@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS `users` (
 -- Seed Data (Insert Users)
 -- Default passwords are 'password123' (hash generated using PHP PASSWORD_DEFAULT)
 INSERT INTO `users` (`id`, `username`, `password`, `role`) VALUES
-(1, 'staff1', '$2y$10$8.X7zQ939FjE6aW3yHjQ4OiYtV7r67bWz5aLg5n3Y35eA2F1O2uO2', 'staff'),
-(2, 'staff2', '$2y$10$8.X7zQ939FjE6aW3yHjQ4OiYtV7r67bWz5aLg5n3Y35eA2F1O2uO2', 'staff'),
-(3, 'admin1', '$2y$10$8.X7zQ939FjE6aW3yHjQ4OiYtV7r67bWz5aLg5n3Y35eA2F1O2uO2', 'admin')
+(1, 'staff1', '$2y$10$xEDdQyDaP4D32dDaerC89eI3L8pBo/9iPPTwlqEQt8ZO1kjCwiiHy', 'staff'),
+(2, 'staff2', '$2y$10$xEDdQyDaP4D32dDaerC89eI3L8pBo/9iPPTwlqEQt8ZO1kjCwiiHy', 'staff'),
+(3, 'admin1', '$2y$10$xEDdQyDaP4D32dDaerC89eI3L8pBo/9iPPTwlqEQt8ZO1kjCwiiHy', 'admin')
 ON DUPLICATE KEY UPDATE `username`=VALUES(`username`), `role`=VALUES(`role`);
