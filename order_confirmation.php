@@ -40,14 +40,17 @@ include 'includes/header.php';
     </p>
 
     <?php
-        $email_title = 'Confirmation Email Queued';
-        $email_message = 'A receipt and tracking details have been prepared for ';
+        $email_title = 'Confirmation Email Prepared';
+        $email_message = 'A receipt and tracking details were generated for ';
         $email_icon = 'fa-paper-plane';
         $email_color = 'var(--success)';
 
         if ($email_status === 'sent') {
             $email_title = 'Confirmation Email Sent!';
             $email_message = 'A receipt and tracking details have been sent to ';
+        } elseif ($email_status === 'queued') {
+            $email_title = 'Confirmation Email Submitted';
+            $email_message = 'The email was submitted to the local mail service and a copy was saved in logs/email_confirmations.log for ';
         } elseif ($email_status === 'logged') {
             $email_title = 'Confirmation Email Logged';
             $email_message = 'Mail is not configured, so a copy was saved in logs/email_confirmations.log for ';
