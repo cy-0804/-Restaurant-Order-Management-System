@@ -144,7 +144,10 @@ include 'includes/header.php';
             <button class="btn btn-primary" id="modal-verify-btn" style="flex:1;">
                 Verify Payment <i class="fa-solid fa-check"></i>
             </button>
-            <button class="btn btn-secondary" onclick="closeReceiptModal()">Close</button>
+            <button class="btn btn-danger" id="modal-unverify-btn" style="flex:1; background-color: var(--danger); border-color: var(--danger);">
+                Reject Payment <i class="fa-solid fa-xmark"></i>
+            </button>
+            <button class="btn btn-secondary" onclick="closeReceiptModal()" style="flex:0.5;">Close</button>
         </div>
     </div>
 </div>
@@ -300,6 +303,7 @@ function renderDashboard() {
         let actionHtml = '';
         if (order.order_status === 'pending') {
             actionHtml = `<button class="btn btn-primary btn-sm" onclick="updateOrderStatus(${order.id}, 'preparing')">Accept Order</button>`;
+            actionHtml += `<button class="btn btn-danger btn-sm" style="margin-left:0.5rem; background-color: var(--danger); border-color: var(--danger);" onclick="updateOrderStatus(${order.id}, 'cancelled')">Reject</button>`;
         } else if (order.order_status === 'preparing') {
             actionHtml = `<button class="btn btn-primary btn-sm" style="background-color: var(--info);" onclick="updateOrderStatus(${order.id}, 'ready')">Mark Ready</button>`;
         } else if (order.order_status === 'ready') {
@@ -312,6 +316,8 @@ function renderDashboard() {
         if (order.order_type === 'online') {
             if (order.payment_status === 'verified') {
                 paymentCol = `<span class="status-badge ready" style="font-size:0.75rem; padding:0.1rem 0.5rem;">Verified</span>`;
+            } else if (order.payment_status === 'failed') {
+                paymentCol = `<span class="status-badge cancelled" style="font-size:0.75rem; padding:0.1rem 0.5rem;">Unverified</span>`;
             } else {
                 paymentCol = `
                     <button class="btn btn-secondary btn-sm" onclick="viewReceipt(${order.id})" style="padding:0.25rem 0.5rem; font-size:0.75rem; border-color:var(--border-color); color:var(--primary);">
@@ -405,6 +411,8 @@ window.viewReceipt = function(orderId) {
         `;
         
         const verifyBtn = document.getElementById('modal-verify-btn');
+        const unverifyBtn = document.getElementById('modal-unverify-btn');
+        
         verifyBtn.onclick = async () => {
             if (dbConnectedGlobal) {
                 try {
@@ -425,6 +433,32 @@ window.viewReceipt = function(orderId) {
                     showToast(`Mock payment verified for order #${order.id}`);
                     closeReceiptModal();
                     fetchDashboardData();
+                }
+            }
+        };
+
+        unverifyBtn.onclick = async () => {
+            if (confirm('Are you sure you want to reject this payment? The customer will be notified via email.')) {
+                if (dbConnectedGlobal) {
+                    try {
+                        const res = await fetch(`api.php?action=unverify_payment&id=${order.id}`);
+                        const data = await res.json();
+                        if(data.success) {
+                            showToast(`Payment rejected for order #${order.id}`);
+                            closeReceiptModal();
+                            fetchDashboardData();
+                        }
+                    } catch(e) {}
+                } else {
+                    const orders = getMockOrders();
+                    const mockOrder = orders.find(o => o.id == order.id);
+                    if (mockOrder) {
+                        mockOrder.payment_status = 'failed';
+                        saveMockOrders(orders);
+                        showToast(`Mock payment rejected for order #${order.id}`);
+                        closeReceiptModal();
+                        fetchDashboardData();
+                    }
                 }
             }
         };

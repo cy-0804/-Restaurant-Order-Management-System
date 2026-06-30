@@ -100,6 +100,33 @@ elseif ($action === 'update_status') {
         $stmt = $pdo->prepare("UPDATE orders SET order_status = ? $payment_status_sql WHERE id = ?");
         $stmt->execute([$status, $id]);
         
+        if ($status === 'cancelled') {
+            $stmtOrder = $pdo->prepare("SELECT * FROM orders WHERE id = ?");
+            $stmtOrder->execute([$id]);
+            $order = $stmtOrder->fetch();
+            
+            if ($order && !empty($order['customer_email'])) {
+                $subject = 'Sup Tulang ZZ Order Cancelled #' . $order['id'];
+                $body = "Dear " . $order['customer_name'] . ",\r\n\r\n";
+                $body .= "We regret to inform you that your Order #" . $order['id'] . " has been rejected and cancelled by our staff.\r\n";
+                $body .= "This may be due to unavailable items, payment issues, or our inability to fulfill the order at this time.\r\n";
+                $body .= "If you have already made a payment, please contact us with your receipt to process a refund.\r\n\r\n";
+                $body .= "We apologize for the inconvenience.\r\n\r\n";
+                $body .= "Sup Tulang ZZ";
+                
+                $config = load_mail_config();
+                if ($config) {
+                    try {
+                        send_smtp_email($config, $order['customer_email'], $order['customer_name'], $subject, $body);
+                    } catch (Exception $e) {
+                        log_order_confirmation_email($order['customer_email'], $subject, $body);
+                    }
+                } else {
+                    log_order_confirmation_email($order['customer_email'], $subject, $body);
+                }
+            }
+        }
+        
         echo json_encode(['success' => true]);
         exit;
     } catch (Exception $e) {
@@ -121,6 +148,110 @@ elseif ($action === 'verify_payment') {
     try {
         $stmt = $pdo->prepare("UPDATE orders SET payment_status = 'verified' WHERE id = ?");
         $stmt->execute([$id]);
+        
+        echo json_encode(['success' => true]);
+        exit;
+    } catch (Exception $e) {
+        returnError($e->getMessage());
+    }
+}
+
+elseif ($action === 'unverify_payment') {
+    if (!is_logged_in() || !in_array($_SESSION['user_role'], ['admin', 'staff'])) {
+        returnError("Unauthorized payment verification action.");
+    }
+    
+    $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+    
+    if (!$db_connected) {
+        returnError("Database not connected.");
+    }
+    
+    try {
+        $stmt = $pdo->prepare("UPDATE orders SET payment_status = 'failed' WHERE id = ?");
+        $stmt->execute([$id]);
+        
+        $stmtOrder = $pdo->prepare("SELECT * FROM orders WHERE id = ?");
+        $stmtOrder->execute([$id]);
+        $order = $stmtOrder->fetch();
+        
+        if ($order && !empty($order['customer_email'])) {
+            $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+            $base_path = rtrim(dirname($_SERVER['PHP_SELF'] ?? ''), '/\\');
+            $tracking_url = $protocol . '://' . $host . $base_path . '/track.php?id=' . urlencode($order['id']);
+            
+            $subject = 'Sup Tulang ZZ Payment Failed for Order #' . $order['id'];
+            $body = "Dear " . $order['customer_name'] . ",\r\n\r\n";
+            $body .= "We reviewed your payment receipt for Order #" . $order['id'] . ", but it appears to be invalid or incomplete.\r\n";
+            $body .= "Your payment status has been marked as Failed. Your order is pending resolution.\r\n";
+            $body .= "Please re-upload a valid payment receipt using this link: " . $tracking_url . "\r\n\r\n";
+            $body .= "Please contact us to resolve this issue.\r\n\r\n";
+            $body .= "Sup Tulang ZZ";
+            
+            $config = load_mail_config();
+            if ($config) {
+                try {
+                    send_smtp_email($config, $order['customer_email'], $order['customer_name'], $subject, $body);
+                } catch (Exception $e) {
+                    log_order_confirmation_email($order['customer_email'], $subject, $body);
+                }
+            } else {
+                log_order_confirmation_email($order['customer_email'], $subject, $body);
+            }
+        }
+        
+        echo json_encode(['success' => true]);
+        exit;
+    } catch (Exception $e) {
+        returnError($e->getMessage());
+    }
+}
+
+elseif ($action === 'reupload_receipt') {
+    $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
+    
+    if (!$db_connected) {
+        returnError("Database not connected.");
+    }
+    
+    try {
+        if (!isset($_FILES['payment_receipt']) || $_FILES['payment_receipt']['error'] !== UPLOAD_ERR_OK) {
+            throw new Exception("Please upload a valid receipt file.");
+        }
+        
+        if ($_FILES['payment_receipt']['size'] > 5 * 1024 * 1024) {
+            throw new Exception("Payment receipt must be 5MB or smaller.");
+        }
+        
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mime_type = $finfo->file($_FILES['payment_receipt']['tmp_name']);
+        $allowed_mimes = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            'application/pdf' => 'pdf'
+        ];
+        if (!isset($allowed_mimes[$mime_type])) {
+            throw new Exception("Payment receipt must be a JPG, PNG, WEBP, or PDF file.");
+        }
+        
+        $upload_dir = __DIR__ . '/uploads/';
+        if (!is_dir($upload_dir)) {
+            mkdir($upload_dir, 0755, true);
+        }
+        
+        $filename = uniqid('receipt_re_', true) . '.' . $allowed_mimes[$mime_type];
+        $destination = $upload_dir . $filename;
+        
+        if (!move_uploaded_file($_FILES['payment_receipt']['tmp_name'], $destination)) {
+            throw new Exception("Could not save payment receipt.");
+        }
+        
+        $receipt_path = 'uploads/' . $filename;
+        
+        $stmt = $pdo->prepare("UPDATE orders SET payment_receipt = ?, payment_status = 'pending' WHERE id = ?");
+        $stmt->execute([$receipt_path, $id]);
         
         echo json_encode(['success' => true]);
         exit;

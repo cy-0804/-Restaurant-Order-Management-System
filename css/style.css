@@ -564,8 +564,8 @@ h1, h2, h3, h4 {
     content: '';
     position: absolute;
     top: 24px;
-    left: 10%;
-    right: 10%;
+    left: 12.5%;
+    right: 12.5%;
     height: 4px;
     background: #e5e2db;
     z-index: 1;
@@ -574,7 +574,7 @@ h1, h2, h3, h4 {
 .step-progress-bar {
     position: absolute;
     top: 24px;
-    left: 10%;
+    left: 12.5%;
     height: 4px;
     background: var(--primary);
     z-index: 1;

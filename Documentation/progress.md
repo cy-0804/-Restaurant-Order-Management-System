@@ -107,3 +107,11 @@ To verify the skeleton operations, follow these four flows:
 2.  Click **Scan Table QR** in the floor map header.
 3.  Grant camera permissions. Hold your phone camera up to scan one of the table QR codes generated on your screen (generated in the Staff Sidebar under **Print Table QRs**).
 4.  Once scanned, the camera stops, and you are automatically redirected to `menu.php?table=X` to place a waiter-assisted order for that table.
+
+### Flow 5: Manual Banking, Re-Uploads & Rejections
+1.  During checkout, select **Online Banking** but upload an image/PDF as a manual bank receipt instead of using the payment gateway. Place the order.
+2.  Log in as **`staff1`**. Under the Orders Queue, notice the order has a **Verify Receipt** button. Click it to preview the receipt.
+3.  Click **Reject Payment**. Observe that the order now displays an **Unverified** badge, and the customer automatically receives an email notification containing a tracking link.
+4.  Open the tracker link from the customer's perspective. Notice the "Payment Failed / Rejected" message and a form to **Re-Upload Receipt**.
+5.  Re-upload a new file. The Staff Dashboard automatically updates the order back to a pending state with the **Verify Receipt** button.
+6.  Alternatively, if the staff clicks the red **Reject** button on a pending order directly, the order status moves to Cancelled, and the customer receives an "Order Cancelled" email outlining the refund policy.

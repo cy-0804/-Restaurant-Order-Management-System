@@ -87,12 +87,9 @@ $order_type = isset($_SESSION['order_type']) ? $_SESSION['order_type'] : 'online
                 </div>
 
                 <div id="payment-receipt-group" style="display: none; border-top: 1px dashed var(--border-color); padding-top: 1.5rem; margin-top: 1.5rem;">
-                    <button type="button" class="btn btn-secondary btn-full" id="payment-gateway-trigger-btn" style="margin-bottom: 1.5rem; border-color: var(--primary); color: var(--primary); background: rgba(245, 158, 11, 0.05); font-weight: 600;">
-                        <i class="fa-solid fa-bolt"></i> Pay via Payment Gateway (Mock)
-                    </button>
-
-                    <div id="gateway-success-msg" style="display: none; background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.3); color: var(--success); border-radius: var(--radius-sm); padding: 1.25rem; text-align: center; font-weight: 600; margin-bottom: 1.5rem;">
-                        <i class="fa-solid fa-circle-check"></i> Paid via SUP-PAY Gateway. Reference: <span id="gateway-ref-text"></span>
+                    <div style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.3); color: var(--success); border-radius: var(--radius-sm); padding: 1.25rem; text-align: center; font-weight: 600; margin-bottom: 1.5rem;">
+                        <i class="fa-solid fa-lock"></i> Secure Payment: You will be redirected to the payment gateway after clicking Place Order.
+                        <span id="gateway-ref-text" style="display:none;"></span>
                     </div>
                 </div>
                 
@@ -234,43 +231,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    const gatewayTriggerBtn = document.getElementById('payment-gateway-trigger-btn');
     const gatewayModal = document.getElementById('gateway-modal');
     const gatewayAmountLabel = document.getElementById('gateway-amount-label');
     const gatewayPaidInput = document.getElementById('payment_gateway_paid');
-    
-    gatewayTriggerBtn.addEventListener('click', () => {
-        gatewayAmountLabel.textContent = `RM ${total.toFixed(2)}`;
-        
-        const method = document.getElementById('payment_method').value;
-        const optionsDiv = document.getElementById('gateway-dynamic-options');
-        const warningDiv = document.getElementById('gateway-dynamic-warning');
-        
-        if (method === 'ewallet') {
-            optionsDiv.innerHTML = `
-                <label for="gateway_provider">Select e-Wallet Provider</label>
-                <select id="gateway_provider" class="form-control">
-                    <option value="tng">Touch 'n Go eWallet</option>
-                    <option value="grab">GrabPay</option>
-                    <option value="boost">Boost</option>
-                    <option value="shopee">ShopeePay</option>
-                </select>
-            `;
-            warningDiv.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="color:var(--primary)"></i> This is a simulated e-Wallet transaction. Clicking pay will complete your order checkout instantly.`;
-        } else if (method === 'card') {
-            optionsDiv.innerHTML = `
-                <label>Card Details</label>
-                <input type="text" class="form-control" placeholder="0000 0000 0000 0000" style="margin-bottom:0.5rem;" value="4111 1111 1111 1111" readonly>
-                <div style="display:flex; gap:0.5rem;">
-                    <input type="text" class="form-control" placeholder="MM/YY" value="12/28" readonly>
-                    <input type="text" class="form-control" placeholder="CVV" value="123" readonly>
-                </div>
-            `;
-            warningDiv.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="color:var(--primary)"></i> This is a simulated Credit/Debit Card transaction. Clicking pay will complete your order checkout instantly.`;
-        }
-        
-        gatewayModal.style.display = 'flex';
-    });
     
     window.closeGatewayModal = function() {
         gatewayModal.style.display = 'none';
@@ -281,28 +244,25 @@ document.addEventListener('DOMContentLoaded', () => {
         
         gatewayPaidInput.value = '1';
         
-        
-        document.getElementById('gateway-success-msg').style.display = 'block';
-        document.getElementById('gateway-ref-text').textContent = ref;
-        
-        const submitBtn = document.querySelector('#checkout-form button[type="submit"]');
-        submitBtn.innerHTML = `Place Order (Paid via Gateway)`;
-        submitBtn.style.boxShadow = 'none';
-        
-        const gatewayTriggerBtn = document.getElementById('payment-gateway-trigger-btn');
-        gatewayTriggerBtn.disabled = true;
-        gatewayTriggerBtn.style.opacity = '0.5';
-        gatewayTriggerBtn.style.cursor = 'not-allowed';
-        gatewayTriggerBtn.innerHTML = `<i class="fa-solid fa-circle-check"></i> Gateway Payment Verified`;
+        const refSpan = document.getElementById('gateway-ref-text');
+        if (refSpan) refSpan.textContent = ref;
         
         closeGatewayModal();
-        showToast("Mock payment processed successfully!");
+        showToast("Mock payment processed successfully! Finalizing order...");
+        
+        if (typeof form.requestSubmit === 'function') {
+            form.requestSubmit();
+        } else {
+            const submitEvent = new Event('submit', { cancelable: true, bubbles: true });
+            form.dispatchEvent(submitEvent);
+        }
     };
     
     const form = document.getElementById('checkout-form');
     form.addEventListener('submit', function(e) {
         const method = document.getElementById('payment_method') ? document.getElementById('payment_method').value : null;
         const receiptInput = document.getElementById('payment_receipt');
+        const isPaidGateway = gatewayPaidInput.value === '1';
         
         if (method === 'manual_transfer' && receiptInput && (!receiptInput.files || receiptInput.files.length === 0)) {
             e.preventDefault();
@@ -328,8 +288,40 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const isPaidGateway = gatewayPaidInput.value === '1';
-        
+        if ((method === 'ewallet' || method === 'card') && !isPaidGateway) {
+            e.preventDefault();
+            
+            gatewayAmountLabel.textContent = `RM ${total.toFixed(2)}`;
+            const optionsDiv = document.getElementById('gateway-dynamic-options');
+            const warningDiv = document.getElementById('gateway-dynamic-warning');
+            
+            if (method === 'ewallet') {
+                optionsDiv.innerHTML = `
+                    <label for="gateway_provider">Select e-Wallet Provider</label>
+                    <select id="gateway_provider" class="form-control">
+                        <option value="tng">Touch 'n Go eWallet</option>
+                        <option value="grab">GrabPay</option>
+                        <option value="boost">Boost</option>
+                        <option value="shopee">ShopeePay</option>
+                    </select>
+                `;
+                warningDiv.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="color:var(--primary)"></i> This is a simulated e-Wallet transaction. Clicking pay will complete your order checkout instantly.`;
+            } else if (method === 'card') {
+                optionsDiv.innerHTML = `
+                    <label>Card Details</label>
+                    <input type="text" class="form-control" placeholder="0000 0000 0000 0000" style="margin-bottom:0.5rem;" value="4111 1111 1111 1111" readonly>
+                    <div style="display:flex; gap:0.5rem;">
+                        <input type="text" class="form-control" placeholder="MM/YY" value="12/28" readonly>
+                        <input type="text" class="form-control" placeholder="CVV" value="123" readonly>
+                    </div>
+                `;
+                warningDiv.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="color:var(--primary)"></i> This is a simulated Credit/Debit Card transaction. Clicking pay will complete your order checkout instantly.`;
+            }
+            
+            gatewayModal.style.display = 'flex';
+            return;
+        }
+
         if (!isDbConnected) {
             e.preventDefault();
             

@@ -98,6 +98,18 @@ include 'includes/header.php';
             <span>Grand Total</span>
             <span style="color:var(--primary)" id="track-total">RM 59.50</span>
         </div>
+        
+        <div id="reupload-receipt-section" style="display:none; margin-top: 2rem; border-top: 1px dashed var(--danger); padding-top: 1.5rem;">
+            <h4 style="color: var(--danger); margin-bottom: 0.5rem;"><i class="fa-solid fa-triangle-exclamation"></i> Payment Receipt Invalid</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">Your previous payment receipt was rejected. Please re-upload a valid receipt to proceed with your order.</p>
+            <form id="reupload-form">
+                <input type="hidden" name="id" id="reupload-order-id">
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <input type="file" class="form-control" name="payment_receipt" accept="image/*,.pdf" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm btn-full" style="background-color: var(--danger); border-color: var(--danger);">Re-Upload Receipt</button>
+            </form>
+        </div>
     </div>
 </div>
 
@@ -151,7 +163,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const isDelivery = order.delivery_method === 'delivery' || localStorage.getItem('delivery_method') === 'delivery';
         
         document.getElementById('info-est-label').textContent = isDelivery ? 'Estimated Delivery Time' : 'Estimated Pickup Time';
-        document.getElementById('info-payment-method').textContent = order.payment_status === 'verified' ? 'Paid Online' : 'Pay at Counter / Pending';
+        
+        const methodElem = document.getElementById('info-payment-method');
+        const reuploadSection = document.getElementById('reupload-receipt-section');
+        if (order.payment_status === 'verified') {
+            methodElem.textContent = 'Paid Online';
+            methodElem.style.color = 'var(--text-muted)';
+            if (reuploadSection) reuploadSection.style.display = 'none';
+        } else if (order.payment_status === 'failed') {
+            methodElem.textContent = 'Payment Failed / Rejected';
+            methodElem.style.color = 'var(--danger)';
+            if (reuploadSection) {
+                reuploadSection.style.display = 'block';
+                document.getElementById('reupload-order-id').value = order.id;
+            }
+        } else {
+            methodElem.textContent = 'Pay at Counter / Pending';
+            methodElem.style.color = 'var(--text-muted)';
+            if (reuploadSection) reuploadSection.style.display = 'none';
+        }
+        
         document.getElementById('track-total').textContent = `RM ${parseFloat(order.total_amount).toFixed(2)}`;
         
         const container = document.getElementById('track-items-summary');
@@ -196,24 +227,52 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (status === 'preparing') {
             nodes.pending.classList.add('completed');
             nodes.preparing.classList.add('active');
-            line.style.width = '33.3%';
+            line.style.width = '25%';
             document.getElementById('info-est-time').textContent = "10 - 15 mins";
         } else if (status === 'ready') {
             nodes.pending.classList.add('completed');
             nodes.preparing.classList.add('completed');
             nodes.ready.classList.add('active');
-            line.style.width = '66.6%';
+            line.style.width = '50%';
             document.getElementById('info-est-time').textContent = isDelivery ? "Arriving now" : "Ready";
         } else if (status === 'completed') {
             nodes.pending.classList.add('completed');
             nodes.preparing.classList.add('completed');
             nodes.ready.classList.add('completed');
             nodes.completed.classList.add('active');
-            line.style.width = '100%';
+            line.style.width = '75%';
             document.getElementById('info-est-time').textContent = isDelivery ? "Delivered" : (isWalkIn ? "Dined" : "Picked Up");
         } else if (status === 'cancelled') {
             document.getElementById('info-est-time').textContent = "-";
         }
+    }
+    
+    const reuploadForm = document.getElementById('reupload-form');
+    if (reuploadForm) {
+        reuploadForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            if (!dbConnected) {
+                alert("Cannot upload receipt in simulation mode.");
+                return;
+            }
+            const formData = new FormData(reuploadForm);
+            try {
+                const res = await fetch('api.php?action=reupload_receipt', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert("Receipt successfully re-uploaded! Status changed to Pending.");
+                    reuploadForm.reset();
+                    pollOrderStatus();
+                } else {
+                    alert(data.error || "Failed to upload receipt.");
+                }
+            } catch (err) {
+                alert("An error occurred during upload.");
+            }
+        });
     }
 });
 </script>
