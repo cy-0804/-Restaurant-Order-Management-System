@@ -39,6 +39,7 @@ $order_type = isset($_SESSION['order_type']) ? $_SESSION['order_type'] : 'online
                     </small>
                 </div>
                 
+                <?php if ($order_type !== 'walk-in'): ?>
                 <div class="form-group" id="delivery-address-group" style="display: none;">
                     <label for="delivery_address">Delivery Address <span style="color:var(--danger)">*</span></label>
                     <textarea name="delivery_address" id="delivery_address" class="form-control" rows="3" placeholder="Enter your full shipping address"></textarea>
@@ -52,6 +53,7 @@ $order_type = isset($_SESSION['order_type']) ? $_SESSION['order_type'] : 'online
                         Johor Bahru, 80000
                     </div>
                 </div>
+                <?php endif; ?>
                 
                 <div class="form-group">
                     <label for="payment_method">Payment Method</label>
@@ -144,15 +146,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const pickupGroup = document.getElementById('pickup-address-group');
     const deliveryInput = document.getElementById('delivery_address');
     
-    if (deliveryMethod === 'pickup') {
-        pickupGroup.style.display = 'block';
-        deliveryGroup.style.display = 'none';
-        deliveryInput.removeAttribute('required');
-    } else {
-        pickupGroup.style.display = 'none';
-        deliveryGroup.style.display = 'block';
-        deliveryInput.setAttribute('required', 'required');
+    if (deliveryGroup && pickupGroup && deliveryInput) {
+        if (deliveryMethod === 'pickup') {
+            pickupGroup.style.display = 'block';
+            deliveryGroup.style.display = 'none';
+            deliveryInput.removeAttribute('required');
+        } else {
+            pickupGroup.style.display = 'none';
+            deliveryGroup.style.display = 'block';
+            deliveryInput.setAttribute('required', 'required');
+        }
     }
+
     
     const container = document.getElementById('checkout-items-list');
     let subtotal = 0;

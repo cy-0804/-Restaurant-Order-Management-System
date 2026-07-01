@@ -65,16 +65,10 @@ include 'includes/header.php';
                 </p>
             </div>
             <div style="width: 100%;">
-                <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">
-                    Simulate Table QR Scan:
-                </div>
-                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-bottom: 1rem;">
-                    <?php for ($t = 1; $t <= 8; $t++): ?>
-                        <a href="index.php?table=<?php echo $t; ?>" class="btn btn-secondary btn-sm" style="padding: 0.5rem 0; font-size: 0.8rem;">
-                            Table <?php echo $t; ?>
-                        </a>
-                    <?php endfor; ?>
-                </div>
+                <button onclick="startScanner()" class="btn btn-primary btn-full" style="margin-bottom: 1.5rem;">
+                    <i class="fa-solid fa-camera"></i> Scan Table QR Code
+                </button>
+
             </div>
         </div>
     </div>
@@ -98,10 +92,65 @@ include 'includes/header.php';
     </div>
 </div>
 
+<div id="scanner-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1002; align-items:center; justify-content:center; padding:1rem;">
+    <div class="glass-card" style="max-width:500px; width:100%; position:relative; padding:2rem; text-align:center;">
+        <button onclick="stopScanner()" style="position:absolute; top:1rem; right:1rem; background:transparent; border:none; font-size:1.5rem; cursor:pointer; color:var(--text-muted);">&times;</button>
+        <h3 style="margin-bottom: 1rem; font-size: 1.25rem;">Scan Table QR</h3>
+        <div id="reader" style="width: 100%; min-height: 300px; background: #000; border-radius: var(--radius-md); overflow: hidden;"></div>
+        <p style="color:var(--text-muted); font-size:0.9rem; margin-top: 1rem;">Point your camera at the QR code on your table.</p>
+    </div>
+</div>
+
+<script src="https://unpkg.com/html5-qrcode"></script>
 <script>
 function setOrderType(type) {
     localStorage.setItem('delivery_method', type);
     window.location.href = 'menu.php';
+}
+
+let currentScanner = null;
+
+function startScanner() {
+    document.getElementById('scanner-modal').style.display = 'flex';
+    
+    currentScanner = new Html5Qrcode("reader");
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+    currentScanner.start(
+        { facingMode: "environment" }, 
+        config, 
+        (decodedText, decodedResult) => {
+            // success
+            stopScanner();
+            if(decodedText.includes('table=')) {
+                window.location.href = decodedText;
+            } else {
+                alert("Invalid QR Code: " + decodedText);
+            }
+        },
+        (errorMessage) => {
+            // ignore parse errors
+        }
+    ).catch((err) => {
+        console.error("Error starting scanner", err);
+        alert("Camera error: Please ensure permissions are granted and you are using HTTPS.");
+        document.getElementById('scanner-modal').style.display = 'none';
+    });
+}
+
+function stopScanner() {
+    if (currentScanner) {
+        currentScanner.stop().then(() => {
+            currentScanner.clear();
+            currentScanner = null;
+            document.getElementById('scanner-modal').style.display = 'none';
+        }).catch(err => {
+            console.error("Failed to stop scanner.", err);
+            document.getElementById('scanner-modal').style.display = 'none';
+        });
+    } else {
+        document.getElementById('scanner-modal').style.display = 'none';
+    }
 }
 </script>
 

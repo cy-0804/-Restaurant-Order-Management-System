@@ -62,6 +62,17 @@ $base_url = "$protocol://$host$path";
     </div>
 </div>
 
+<?php if ($host === 'localhost' || $host === '127.0.0.1'): ?>
+<div class="no-print" style="background: rgba(220, 38, 38, 0.1); border: 1px solid rgba(220, 38, 38, 0.3); border-radius: var(--radius-sm); padding: 1rem; margin-bottom: 2rem;">
+    <h4 style="color: var(--danger); margin-bottom: 0.5rem;"><i class="fa-solid fa-triangle-exclamation"></i> Warning: Using Localhost</h4>
+    <p style="font-size: 0.9rem; color: var(--text-muted); line-height: 1.5;">
+        You are viewing this page via <strong>localhost</strong>. The QR codes generated below will point to <code>localhost</code>, which means <strong>they will fail to load if scanned by a phone</strong> (the phone will try to connect to itself). <br><br>
+        <strong>How to fix this:</strong> Find your computer's local Wi-Fi IP address (e.g. <code>192.168.1.15</code>), make sure your phone is on the same Wi-Fi, and open this page in your computer's browser using your IP instead: <br>
+        <code>http://YOUR_IP_ADDRESS/<?php echo trim($path, '/'); ?>/qr_generator.php</code>
+    </p>
+</div>
+<?php endif; ?>
+
 <div class="qr-print-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 2rem;">
     <?php for ($table_id = 1; $table_id <= 8; $table_id++): 
         $target_url = "$base_url/index.php?table=$table_id";
